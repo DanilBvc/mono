@@ -48,6 +48,7 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
     dice.rotation.z += diceRotation.z;
     if (dice.position.y <= diceHeight / 2 + boardHeight / 2 + boardHeight) {
       dice.position.y = diceHeight / 2 + boardHeight / 2 + boardHeight;
+      console.log('rotation', dice);
     } else {
       requestAnimationFrame(() => animateDice(dice));
     }
@@ -124,7 +125,7 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
     return water;
   };
 
-  const addDiceEntities = () => {
+  const addDiceEntities = (y = 5) => {
     const diceGeometry = new THREE.BoxGeometry(
       diceWidth,
       diceHeight,
@@ -136,7 +137,7 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
       return new THREE.MeshBasicMaterial({ map: texture });
     });
     const dice = new THREE.Mesh(diceGeometry, diceTextures);
-    dice.position.y = 5;
+    dice.position.y = y;
     return dice;
   };
 
@@ -183,7 +184,8 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
     return player;
   };
 
-  const calcPlayerCoords = (player, step) => {
+  const calcPlayerCoords = (player, step, stepCount) => {
+    console.log(step);
     const xStep = 8.5 / 10;
     const zStep = 8.5 / 10;
     let x;
@@ -193,38 +195,43 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
       z = player.position.z;
     }
     if (step > 10 && step <= 20) {
-      x = player.position.x - xStep * 10;
-      z = player.position.z - zStep * (step - 10);
+      x = player.position.x;
+      z = player.position.z - zStep * stepCount;
     }
     if (step > 20 && step <= 30) {
-      x = player.position.x - xStep * (30 - step);
-      z = player.position.z - zStep * 10;
+      x = player.position.x + xStep * stepCount;
+      z = player.position.z;
     }
     if (step > 30 && step <= 40) {
-      x = player.position.x - xStep * 0;
-      z = player.position.z - zStep * (40 - step);
+      z = player.position.z + zStep * stepCount;
+      x = player.position.x;
     }
+    console.log({ x, z, y: 1.1 });
     return { x, z, y: 1.1 };
   };
 
   const movePlayerSmooth = (player, targetPosition, duration = 1000) => {
-    const start = player.position.clone();
-    const end = targetPosition;
-    const startTime = performance.now();
+    return new Promise((resolve) => {
+      const start = player.position.clone();
+      const end = targetPosition;
+      const startTime = performance.now();
 
-    const animate = () => {
-      const currentTime = performance.now();
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+      const animate = () => {
+        const currentTime = performance.now();
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
 
-      player.position.lerpVectors(start, end, progress);
+        player.position.lerpVectors(start, end, progress);
 
-      if (elapsed < duration) {
-        requestAnimationFrame(animate);
-      }
-    };
+        if (elapsed < duration) {
+          requestAnimationFrame(animate);
+        } else {
+          resolve(false);
+        }
+      };
 
-    requestAnimationFrame(animate);
+      requestAnimationFrame(animate);
+    });
   };
 
   const init = () => {
@@ -253,9 +260,9 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
     const sky = addSkyEntities();
     const player = addPlayer();
 
-    movePlayerSmooth(player, calcPlayerCoords(player, 7));
+    const dice1 = addDiceEntities(10);
 
-    entities.push(board, dice, water, sun, sky, player);
+    entities.push(board, dice, water, sun, sky, player, dice1);
 
     const parameters = {
       elevation: 2,
@@ -281,6 +288,7 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
 
     const onDiceClick = handleEntitiesClick(camera, scene, dice, () => {
       animateDice(dice);
+      animateDice(dice1);
     });
 
     entities.forEach((entity) => {
@@ -306,11 +314,33 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
       camera.aspect = newWidth / newHeight;
       camera.updateProjectionMatrix();
     }
-    return { render, onWindowResize, onDiceClick };
+    return { render, onWindowResize, onDiceClick, player };
   };
 
-  useEffect(() => {
-    const { render, onWindowResize, onDiceClick } = init();
+  useEffect(async () => {
+    const { render, onWindowResize, onDiceClick, player } = init();
+    let step = 10;
+    await movePlayerSmooth(player, calcPlayerCoords(player, step, 10));
+    step += 10;
+    await movePlayerSmooth(player, calcPlayerCoords(player, step, 10));
+    step += 10;
+    await movePlayerSmooth(player, calcPlayerCoords(player, step, 10));
+    step += 5;
+    await movePlayerSmooth(player, calcPlayerCoords(player, step, 5));
+    step += 5;
+    await movePlayerSmooth(player, calcPlayerCoords(player, step, 5));
+
+    // step += 10;
+    // await movePlayerSmooth(player, calcPlayerCoords(player, step));
+    //
+    // step += 10;
+    // await movePlayerSmooth(player, calcPlayerCoords(player, step));
+
+    // step += 10;
+    // await movePlayerSmooth(player, calcPlayerCoords(player, step));
+
+    // step += 10;
+    // await movePlayerSmooth(player, calcPlayerCoords(player, step));
     window.addEventListener('click', onDiceClick);
     window.addEventListener('resize', onWindowResize, false);
     return () => {
