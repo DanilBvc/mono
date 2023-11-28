@@ -1,238 +1,50 @@
 import React, { FC, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Water } from 'three/examples/jsm/objects/Water.js';
-import { Sky } from 'three/examples/jsm/objects/Sky.js';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { roomType } from '../main/Room/room.type';
-import { getRoomExpireTime } from '@utils/utils';
+import io from 'socket.io-client';
+import { baseUrl } from '@utils/network';
+import useUserDataStore from 'src/store/user-store';
+import { socketEvents } from 'src/constants/socket-events.enum';
+import { addControls, handleEntitiesClick } from '@utils/game/materials.helper';
+import { addPlayer } from './gameEntities/player/player.entities';
+import { addSunEntities } from './gameEntities/sun/sun.entities';
+import { addWaterEntities } from './gameEntities/water/water.entities';
+import { addSkyEntities } from './gameEntities/sky/sky.enities';
+import {
+  addDicesEntities,
+  diceDropPosition,
+} from './gameEntities/dice/dice.entities';
+import { addBoardEntities } from './gameEntities/board/board.entities';
+import { animateSunAndWater } from './gameEntities/sun/sun-animation';
+import { animateDice } from './gameEntities/dice/dice.helper';
+import {
+  calcPlayerCoords,
+  movePlayerSmooth,
+} from './gameEntities/player/player.helpers';
 
 const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
-  const { roomName, createdAt, players, maxPlayers } = gameData;
+  //entry point
+  const mountRef = useRef(null);
+  //init socket connection
+  const socket = io(baseUrl);
+  //game data
+  const { roomName, createdAt, players, maxPlayers, whosTurn, _id } = gameData;
+  //user data
+  const userData = useUserDataStore((state) => state.userData);
+  //players entities
+  const [playersBox, setPlayersBox] = useState([]);
+
+  useEffect(() => {
+    socket.emit(socketEvents.JOIN_GAME, { _id, userId: userData._id });
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
   //board sizes
   const boardHeight = 0.7;
   const boardWidth = 10;
   const boardDepth = 10;
-
-  //board colors
-  const materials = (boardTexture, sideTextures) => [
-    new THREE.MeshBasicMaterial({ map: sideTextures }),
-    new THREE.MeshBasicMaterial({ map: sideTextures }),
-    new THREE.MeshBasicMaterial({ map: boardTexture }),
-    new THREE.MeshBasicMaterial({ map: sideTextures }),
-    new THREE.MeshBasicMaterial({ map: sideTextures }),
-    new THREE.MeshBasicMaterial({ map: sideTextures }),
-  ];
-
-  //player movement
-  const X_STEP = boardWidth / 10;
-  const Z_STEP = boardDepth / 10;
-
-  //dice sizes
-  const diceHeight = 1;
-  const diceWidth = 1;
-  const diceDepth = 1;
-  const diceVelocity = new THREE.Vector3(0, -0.1, 0);
-
-  //dice animation
-  const animateDice = (dice) => {
-    const diceRotation = new THREE.Vector3(
-      Math.random() * Math.PI,
-      Math.random() * Math.PI,
-      Math.random() * Math.PI
-    );
-    dice.position.add(diceVelocity);
-    dice.rotation.x += diceRotation.x;
-    dice.rotation.y += diceRotation.y;
-    dice.rotation.z += diceRotation.z;
-    if (dice.position.y <= diceHeight / 2 + boardHeight / 2 + boardHeight) {
-      dice.position.y = diceHeight / 2 + boardHeight / 2 + boardHeight;
-      console.log('rotation', dice);
-    } else {
-      requestAnimationFrame(() => animateDice(dice));
-    }
-  };
-
-  const mountRef = useRef(null);
-
-  const loadTextures = (textureSrc: string) => {
-    const textureLoader = new THREE.TextureLoader();
-    return textureLoader.load(textureSrc);
-  };
-
-  const handleEntitiesClick = (camera, scene, entity, callBack) => {
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    const onClick = (event) => {
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-
-      const intersects = raycaster.intersectObjects(scene.children);
-      if (intersects[0]?.object === entity) {
-        callBack();
-      }
-    };
-    return onClick;
-  };
-
-  const addControls = (camera, rerender) => {
-    const controls = new OrbitControls(camera, rerender.domElement);
-    controls.rotateSpeed = 0.3;
-
-    camera.position.z = 15;
-    return controls;
-  };
-
-  const addBoardEntities = () => {
-    const boardGeometry = new THREE.BoxGeometry(
-      boardWidth,
-      boardHeight,
-      boardDepth
-    );
-
-    const boardTexture = loadTextures('/assets/field2.jpg');
-    const sideTextures = loadTextures('/assets/tree.jpg');
-    const board = new THREE.Mesh(
-      boardGeometry,
-      materials(boardTexture, sideTextures)
-    );
-    board.position.y = boardHeight / 2;
-    return board;
-  };
-
-  const addWaterEntities = () => {
-    const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
-
-    const water = new Water(waterGeometry, {
-      textureWidth: 512,
-      textureHeight: 512,
-      waterNormals: new THREE.TextureLoader().load(
-        '/assets/water.jpg',
-        function (texture) {
-          texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-        }
-      ),
-      sunDirection: new THREE.Vector3(),
-      sunColor: 0xffffff,
-      waterColor: 0x001e0f,
-      distortionScale: 3.7,
-      fog: false,
-    });
-    water.rotation.x = -Math.PI / 2;
-    return water;
-  };
-
-  const addDiceEntities = (y = 5) => {
-    const diceGeometry = new THREE.BoxGeometry(
-      diceWidth,
-      diceHeight,
-      diceDepth
-    );
-
-    const diceTextures = Array.from(Array(6).keys()).map((numb) => {
-      const texture = loadTextures(`/assets/dice/dice-${numb + 1}.png`);
-      return new THREE.MeshBasicMaterial({ map: texture });
-    });
-    const dice = new THREE.Mesh(diceGeometry, diceTextures);
-    dice.position.y = y;
-    return dice;
-  };
-
-  const addSunEntities = () => {
-    const parameters = {
-      elevation: 2,
-      azimuth: 180,
-    };
-    const phi = THREE.MathUtils.degToRad(90 - parameters.elevation);
-    const theta = THREE.MathUtils.degToRad(parameters.azimuth);
-    const sun = new THREE.Vector3();
-    sun.setFromSphericalCoords(1, phi, theta);
-    return sun;
-  };
-
-  const addSkyEntities = () => {
-    const sky = new Sky();
-    sky.scale.setScalar(10000);
-
-    return sky;
-  };
-
-  const addPlayer = () => {
-    const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    const material = new THREE.MeshBasicMaterial({ color: 0xfffd0000 });
-    const player = new THREE.Mesh(geometry, material);
-    //go position
-    player.position.y = boardHeight / 2 + 0.75;
-    player.position.x = boardWidth / 2 - 0.75;
-    player.position.z = boardDepth / 2 - 0.75;
-    //visit jail
-    // player.position.y = boardHeight / 2 + 0.75;
-    // player.position.x = -boardWidth / 2 + 0.75;
-    // player.position.z = boardDepth / 2 - 0.75;
-    //casino
-    // player.position.y = boardHeight / 2 + 0.75;
-    // player.position.x = -boardWidth / 2 + 0.75;
-    // player.position.z = -boardDepth / 2 + 0.75;
-    //go to jail
-    // player.position.y = boardHeight / 2 + 0.75;
-    // player.position.x = boardWidth / 2 - 0.75;
-    // player.position.z = -boardDepth / 2 + 0.75;
-
-    return player;
-  };
-
-  const calcPlayerCoords = (player, step, stepCount) => {
-    console.log(step);
-    const xStep = 8.5 / 10;
-    const zStep = 8.5 / 10;
-    let x;
-    let z;
-    if (step <= 10) {
-      x = player.position.x - xStep * step;
-      z = player.position.z;
-    }
-    if (step > 10 && step <= 20) {
-      x = player.position.x;
-      z = player.position.z - zStep * stepCount;
-    }
-    if (step > 20 && step <= 30) {
-      x = player.position.x + xStep * stepCount;
-      z = player.position.z;
-    }
-    if (step > 30 && step <= 40) {
-      z = player.position.z + zStep * stepCount;
-      x = player.position.x;
-    }
-    console.log({ x, z, y: 1.1 });
-    return { x, z, y: 1.1 };
-  };
-
-  const movePlayerSmooth = (player, targetPosition, duration = 1000) => {
-    return new Promise((resolve) => {
-      const start = player.position.clone();
-      const end = targetPosition;
-      const startTime = performance.now();
-
-      const animate = () => {
-        const currentTime = performance.now();
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        player.position.lerpVectors(start, end, progress);
-
-        if (elapsed < duration) {
-          requestAnimationFrame(animate);
-        } else {
-          resolve(false);
-        }
-      };
-
-      requestAnimationFrame(animate);
-    });
-  };
 
   const init = () => {
     const scene = new THREE.Scene();
@@ -253,43 +65,13 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
 
     camera.position.z = 15;
 
-    const board = addBoardEntities();
-    const dice = addDiceEntities();
+    const board = addBoardEntities(boardHeight, boardWidth, boardDepth);
+    const dices = addDicesEntities();
     const water = addWaterEntities();
     const sun = addSunEntities();
     const sky = addSkyEntities();
-    const player = addPlayer();
-
-    const dice1 = addDiceEntities(10);
-
-    entities.push(board, dice, water, sun, sky, player, dice1);
-
-    const parameters = {
-      elevation: 2,
-      azimuth: 180,
-    };
-
-    function animateSunAndWater() {
-      const phi = THREE.MathUtils.degToRad(90 - parameters.elevation);
-      const theta = THREE.MathUtils.degToRad(parameters.azimuth);
-
-      sun.setFromSphericalCoords(1, phi, theta);
-
-      sky.material.uniforms['sunPosition'].value.copy(sun);
-      water.material.uniforms['sunDirection'].value.copy(sun).normalize();
-      water.material.uniforms['time'].value += 1.0 / 60.0;
-    }
-
-    const controls = addControls(camera, render);
-    controls.maxPolarAngle = Math.PI * 0.65;
-    controls.target.set(0, 10, 0);
-    controls.maxDistance = 200.0;
-    controls.update();
-
-    const onDiceClick = handleEntitiesClick(camera, scene, dice, () => {
-      animateDice(dice);
-      animateDice(dice1);
-    });
+    const player = addPlayer(boardHeight, boardWidth, boardDepth);
+    entities.push(board, water, sun, sky, player, ...dices);
 
     entities.forEach((entity) => {
       if (entity instanceof THREE.Object3D) {
@@ -297,10 +79,48 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
       }
     });
 
+    setPlayersBox((prev) => [...prev, player]);
+
+    addControls(camera, render);
+
+    const onDiceClick = handleEntitiesClick(
+      camera,
+      scene,
+      dices[0],
+      async () => {
+        if (whosTurn === userData._id) {
+          const diceResult = animateDice(
+            dices[0],
+            diceDropPosition.dice,
+            boardHeight
+          );
+          const dice1Result = animateDice(
+            dices[1],
+            diceDropPosition.dice1,
+            boardHeight
+          );
+          const result = await Promise.allSettled([dice1Result, diceResult]);
+          let step = players.find(
+            (player) => player._id === userData._id
+          ).steps;
+          result.forEach(async (item) => {
+            if (item.status === 'fulfilled') {
+              const value = item.value as number;
+              //here update
+            }
+          });
+          // socket.emit(socketEvents.ADD_STEP, {
+          //   userId: userData._id,
+          //   roomId: _id,
+          //   steps: step,
+          // });
+        }
+      }
+    );
+
     const animate = function () {
       requestAnimationFrame(animate);
-      animateSunAndWater();
-
+      animateSunAndWater(sun, sky, water);
       render.render(scene, camera);
     };
 
@@ -314,33 +134,12 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
       camera.aspect = newWidth / newHeight;
       camera.updateProjectionMatrix();
     }
-    return { render, onWindowResize, onDiceClick, player };
+    return { render, onWindowResize, onDiceClick };
   };
 
-  useEffect(async () => {
-    const { render, onWindowResize, onDiceClick, player } = init();
-    let step = 10;
-    await movePlayerSmooth(player, calcPlayerCoords(player, step, 10));
-    step += 10;
-    await movePlayerSmooth(player, calcPlayerCoords(player, step, 10));
-    step += 10;
-    await movePlayerSmooth(player, calcPlayerCoords(player, step, 10));
-    step += 5;
-    await movePlayerSmooth(player, calcPlayerCoords(player, step, 5));
-    step += 5;
-    await movePlayerSmooth(player, calcPlayerCoords(player, step, 5));
+  useEffect(() => {
+    const { render, onWindowResize, onDiceClick } = init();
 
-    // step += 10;
-    // await movePlayerSmooth(player, calcPlayerCoords(player, step));
-    //
-    // step += 10;
-    // await movePlayerSmooth(player, calcPlayerCoords(player, step));
-
-    // step += 10;
-    // await movePlayerSmooth(player, calcPlayerCoords(player, step));
-
-    // step += 10;
-    // await movePlayerSmooth(player, calcPlayerCoords(player, step));
     window.addEventListener('click', onDiceClick);
     window.addEventListener('resize', onWindowResize, false);
     return () => {
@@ -349,6 +148,25 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
       window.removeEventListener('resize', onWindowResize, false);
     };
   }, []);
+
+  useEffect(() => {
+    playersBox.forEach(async (player) => {
+      let stepsCounter = players[0].steps;
+      let currentStep = 0;
+      const makeTurn = async () => {
+        if (stepsCounter > 10) {
+          stepsCounter -= 10;
+          currentStep += 10;
+          await movePlayerSmooth(player, currentStep, 10);
+          makeTurn();
+        } else {
+          currentStep += stepsCounter;
+          await movePlayerSmooth(player, currentStep, stepsCounter);
+        }
+      };
+      makeTurn();
+    });
+  }, [playersBox]);
 
   return <div ref={mountRef} />;
 };

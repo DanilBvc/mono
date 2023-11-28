@@ -15,11 +15,20 @@ export class Room extends Document {
   passwordHash: string;
   @Prop({ type: Number, required: true })
   maxPlayers: number;
+  @Prop({ type: String, required: true })
+  whosTurn: string;
   @Prop({
     type: Array,
     validate: [maxPlayersValidation, 'maximum players exceeds'],
   })
-  players: { userName: string; _id: string; role: userRole }[];
+  players: {
+    userName: string;
+    _id: string;
+    role: userRole;
+    steps: number;
+    property: [];
+    money: number;
+  }[];
 }
 
 function maxPlayersValidation(value: any[]) {

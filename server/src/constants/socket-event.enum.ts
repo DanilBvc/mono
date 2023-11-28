@@ -1,0 +1,6 @@
+export enum socketEvents {
+  JOIN_GAME = 'JOIN_GAME',
+  ADD_STEP = 'ADD_STEP',
+  STEP_UPDATED = 'STEP_UPDATED',
+  NEW_PLAYER_JOIN = 'NEW_PLAYER_JOIN',
+}

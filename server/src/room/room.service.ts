@@ -140,7 +140,7 @@ export class RoomService {
       }
       await this.handleUnfinishedGames(userId, room);
 
-      players.push({ userName, _id, role });
+      players.push({ userName, _id, role, steps: 0, property: [], money: 0 });
       await this.userService.addUnfinishedUserGame(_id, room._id);
       await room.save();
 
@@ -163,11 +163,15 @@ export class RoomService {
           passwordHash,
           roomName,
           maxPlayers,
+          whosTurn: userId,
           players: [
             {
               userName,
               _id,
               role: userRole.HOST,
+              steps: 0,
+              money: 0,
+              property: [],
             },
           ],
         });
@@ -186,5 +190,26 @@ export class RoomService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+  async addUserStep(userId: string, roomId: string, steps: number) {
+    const update = {
+      $inc: { 'players.$[elem].steps': steps },
+    };
+    const options = {
+      new: true,
+      arrayFilters: [{ 'elem._id': userId }],
+    };
+
+    const updatedRoom = await this.roomModel.findOneAndUpdate(
+      { _id: roomId },
+      update,
+      options,
+    );
+
+    if (!updatedRoom) {
+      throw new Error('Room not found');
+    }
+
+    return updatedRoom;
   }
 }

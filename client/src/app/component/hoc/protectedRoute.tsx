@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { getFromLocalStorage } from '@utils/utils';
 import { whoAmI } from 'src/utils/network';
 import { authorizedRequest } from '@utils/queries';
+import useUserDataStore from 'src/store/user-store';
 
 export function ProtectedRoute<T>(WrappedComponent: NextPage<T>): NextPage<T> {
   const ProtectedComponent: NextPage<T> = (props: T) => {
     const [isAuth, setIsAuth] = useState(true);
+    const setUserData = useUserDataStore((state) => state.setUserData);
     const router = useRouter();
     const accessToken = getFromLocalStorage('accessToken');
     const getUserData = async () => {
@@ -17,6 +19,7 @@ export function ProtectedRoute<T>(WrappedComponent: NextPage<T>): NextPage<T> {
         if (!response) {
           setIsAuth(false);
         } else {
+          setUserData(response);
           setIsAuth(true);
         }
       } catch (err) {

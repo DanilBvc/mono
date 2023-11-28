@@ -6,6 +6,7 @@ import { Room, RoomSchema } from './schemas/room.schema';
 import { HashPasswordService } from 'src/hashPassword/hashPassword.service';
 import { UserService } from 'src/users/user.service';
 import { User, UserSchema } from 'src/users/schema/user.schema';
+import { RoomGateway } from './room.gateway';
 
 @Module({
   imports: [
@@ -13,6 +14,6 @@ import { User, UserSchema } from 'src/users/schema/user.schema';
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
   ],
   controllers: [RoomController],
-  providers: [RoomService, HashPasswordService, UserService],
+  providers: [RoomService, HashPasswordService, UserService, RoomGateway],
 })
 export class RoomModule {}

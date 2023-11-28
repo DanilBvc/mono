@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { SessionGateway } from './session/session.gateway';
 import { RoomModule } from './room/room.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -21,6 +20,6 @@ import { MongooseModule } from '@nestjs/mongoose';
     RoomModule,
   ],
   controllers: [AppController],
-  providers: [AppService, SessionGateway],
+  providers: [AppService],
 })
 export class AppModule {}
