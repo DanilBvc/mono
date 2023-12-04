@@ -19,7 +19,6 @@ export const calcPlayerCoords = (player, step, stepCount) => {
     z = player.position.z + zStep * stepCount;
     x = player.position.x;
   }
-  console.log({ x, z, y: 1.1 });
   return { x, z, y: 1.1 };
 };
 export const movePlayerSmooth = (player, step, stepCount, duration = 1000) => {

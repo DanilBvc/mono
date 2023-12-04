@@ -76,7 +76,7 @@ export const animateDice = async (dice, dropPosition, boardHeight) => {
             requestAnimationFrame(() => animate(directions.DOWN));
           } else {
             dice.position.y = 1;
-            const numb = Math.floor(Math.random() * 6) + 1;
+            const numb = 1; //Math.floor(Math.random() * 6) + 1;
             const randomSide = diceSides[numb];
             dice.rotation.x = randomSide.x;
             dice.rotation.z = randomSide.z;

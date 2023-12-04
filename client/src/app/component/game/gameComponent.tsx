@@ -21,12 +21,13 @@ import {
   calcPlayerCoords,
   movePlayerSmooth,
 } from './gameEntities/player/player.helpers';
+import useWebSocket from '@hooks/useWebSocket/useWebSocket';
 
 const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
   //entry point
   const mountRef = useRef(null);
   //init socket connection
-  const socket = io(baseUrl);
+  const { socket } = useWebSocket(baseUrl);
   //game data
   const { roomName, createdAt, players, maxPlayers, whosTurn, _id } = gameData;
   //user data
@@ -35,11 +36,13 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
   const [playersBox, setPlayersBox] = useState([]);
 
   useEffect(() => {
-    socket.emit(socketEvents.JOIN_GAME, { _id, userId: userData._id });
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
+    if (socket) {
+      socket.emit(socketEvents.JOIN_GAME, { _id, userId: userData._id });
+      socket.on(socketEvents.NEW_PLAYER_JOIN, (data) => {
+        console.log(data);
+      });
+    }
+  }, [socket]);
 
   //board sizes
   const boardHeight = 0.7;
@@ -103,12 +106,19 @@ const GameComponent: FC<{ gameData: roomType }> = ({ gameData }) => {
           let step = players.find(
             (player) => player._id === userData._id
           ).steps;
+          let stepsCounter = 0;
           result.forEach(async (item) => {
             if (item.status === 'fulfilled') {
               const value = item.value as number;
               //here update
+              stepsCounter += value;
             }
           });
+          const makeTurn = async () => {
+            await movePlayerSmooth(player, step, stepsCounter);
+          };
+          makeTurn();
+
           // socket.emit(socketEvents.ADD_STEP, {
           //   userId: userData._id,
           //   roomId: _id,

@@ -38,7 +38,7 @@ export class RoomGateway {
         { ...room, players: [...room.players, { userId, socket }] },
       ];
       room.players.forEach((player) => {
-        player.socket.emit(socketEvents.NEW_PLAYER_JOIN);
+        player.socket.emit(socketEvents.NEW_PLAYER_JOIN, userId);
       });
     }
   }
